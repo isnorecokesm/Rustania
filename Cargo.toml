@@ -1,0 +1,11 @@
+[package]
+name = "mania_game"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+macroquad = "0.4"
+rodio = "0.17"
+rfd = "0.12"
+zip = "0.6"
