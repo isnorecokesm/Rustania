@@ -80,7 +80,7 @@ async fn main() {
 
                 for (i, diff) in difficulties.iter().enumerate() {
                     if root_ui().button(vec2(40.0, 195.0 + (i as f32 * 40.0)), diff.version.as_str()) {
-                        if let Ok(s) = parser::load_map(diff.path.clone(), &stream_handle, key_mode) {
+                        if let Ok(s) = parser::load_map(diff.path.clone(), &stream_handle, key_mode).await {
                             state = Some(s);
                             scene = "Playing";
                         }

@@ -35,8 +35,26 @@ pub fn update_and_draw(state: &mut GameState) {
     let hit_zone = playfield_height * 0.85; // 85% down the screen
     
     // Draw playfield background
-    draw_rectangle(start_x, 0.0, total_w, playfield_height, Color::new(0.0, 0.0, 0.0, 0.95));
-    
+// Draw playfield background
+if let Some(bg) = &state.bg_texture {
+    draw_texture_ex(
+        bg,
+        0.0,
+        0.0,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(vec2(screen_width(), screen_height())),
+            ..Default::default()
+        }
+    );
+} else {
+    draw_rectangle(0.0, 0.0, screen_width(), screen_height(), BLACK);
+}
+
+// BG dim overlay (30% opacity)
+draw_rectangle(0.0, 0.0, screen_width(), screen_height(), Color::new(0.0, 0.0, 0.0, 0.4));
+
+
     // Draw hit zone line
     draw_rectangle(start_x, hit_zone, total_w, 4.0, WHITE);
     
@@ -49,78 +67,83 @@ pub fn update_and_draw(state: &mut GameState) {
     let keys = if state.key_count == 2 { vec![KeyCode::D, KeyCode::K] } 
                else { vec![KeyCode::D, KeyCode::F, KeyCode::J, KeyCode::K] };
 
-    // FIRST PASS: Handle key presses (start of notes)
-    for (i, key) in keys.iter().enumerate() {
-        let lx = start_x + (i as f32 * lane_w);
-        if is_key_down(*key) {
-            draw_rectangle(lx, 0.0, lane_w, hit_zone, Color::new(1.0, 1.0, 1.0, 0.1));
-        }
+for (i, key) in keys.iter().enumerate() {
+    let lx = start_x + (i as f32 * lane_w);
 
-        if is_key_pressed(*key) {
-            // Find the closest unhit note in this lane within timing window
-            let mut closest_note: Option<(usize, f32)> = None;
-            
-            for (idx, note) in state.notes.iter().enumerate() {
-                if note.lane == i && !note.hit && !note.missed {
-                    let time_diff = (note.start_time - now).abs();
-                    if time_diff < OK_WINDOW {
-                        if let Some((_, current_diff)) = closest_note {
-                            if time_diff < current_diff {
-                                closest_note = Some((idx, time_diff));
-                            }
-                        } else {
+    // Highlight lane if key is held
+    if is_key_down(*key) {
+        draw_rectangle(lx, 0.0, lane_w, hit_zone, Color::new(1.0, 1.0, 1.0, 0.1));
+    }
+
+    // Draw key label below hit zone
+    let label = format!("{:?}", key);
+    let measure = measure_text(&label, None, 30, 1.0);
+    let label_x = lx + (lane_w - measure.width) / 2.0;
+    let label_y = hit_zone + 30.0 + 10.0; // hit_zone + font size + extra padding
+
+    draw_text(&label, label_x, label_y, 30.0, WHITE);
+
+    // FULL logic for when key is pressed
+    if is_key_pressed(*key) {
+        // Find the closest unhit note in this lane within timing window
+        let mut closest_note: Option<(usize, f32)> = None;
+
+        for (idx, note) in state.notes.iter().enumerate() {
+            if note.lane == i && !note.hit && !note.missed {
+                let time_diff = (note.start_time - now).abs();
+                if time_diff < OK_WINDOW {
+                    if let Some((_, current_diff)) = closest_note {
+                        if time_diff < current_diff {
                             closest_note = Some((idx, time_diff));
                         }
+                    } else {
+                        closest_note = Some((idx, time_diff));
                     }
                 }
             }
-            
-            if let Some((idx, _)) = closest_note {
-                let note = &mut state.notes[idx];
-                let timing_diff = note.start_time - now;
-                let abs_timing = timing_diff.abs();
-                let duration = note.end_time - note.start_time;
-                
-                // Determine judgment based on timing
-                let (judgment, judgment_color, score_val) = if abs_timing <= PERFECT_WINDOW {
-                    state.hit_counts.perfect += 1;
-                    ("PERFECT", Color::new(1.0, 0.8, 0.0, 1.0), 300) // Gold
-                } else if abs_timing <= GREAT_WINDOW {
-                    state.hit_counts.great += 1;
-                    ("GREAT", Color::new(0.0, 1.0, 0.5, 1.0), 200) // Green
-                } else if abs_timing <= GOOD_WINDOW {
-                    state.hit_counts.good += 1;
-                    ("GOOD", Color::new(0.3, 0.8, 1.0, 1.0), 100) // Blue
-                } else {
-                    state.hit_counts.ok += 1;
-                    ("OK", Color::new(0.7, 0.7, 0.7, 1.0), 50) // Gray
-                };
-                
-                // Check if it's a long note or regular note
-                if duration >= MIN_LN_DURATION {
-                    // Long note - mark head as hit
-                    note.ln_started = true;
-                    note.hit = true;
-                    state.combo += 1;
-                    state.score += score_val / 2; // Half score for head
-                    state.last_judgment = judgment;
-                    state.judgment_color = judgment_color;
-                    state.judgment_time = now;
-                    state.last_input_delay = timing_diff * 1000.0;
-                } else {
-                    // Regular note
-                    note.hit = true;
-                    note.missed = false;
-                    state.combo += 1;
-                    state.score += score_val;
-                    state.last_judgment = judgment;
-                    state.judgment_color = judgment_color;
-                    state.judgment_time = now;
-                    state.last_input_delay = timing_diff * 1000.0;
-                }
+        }
+
+        if let Some((idx, _)) = closest_note {
+            let note = &mut state.notes[idx];
+            let timing_diff = note.start_time - now;
+            let abs_timing = timing_diff.abs();
+            let duration = note.end_time - note.start_time;
+
+            // Determine judgment based on timing
+            let (judgment, judgment_color, score_val) = if abs_timing <= PERFECT_WINDOW {
+                state.hit_counts.perfect += 1;
+                ("PERFECT", Color::new(1.0, 0.8, 0.0, 1.0), 300)
+            } else if abs_timing <= GREAT_WINDOW {
+                state.hit_counts.great += 1;
+                ("GREAT", Color::new(0.0, 1.0, 0.5, 1.0), 200)
+            } else if abs_timing <= GOOD_WINDOW {
+                state.hit_counts.good += 1;
+                ("GOOD", Color::new(0.3, 0.8, 1.0, 1.0), 100)
+            } else {
+                state.hit_counts.ok += 1;
+                ("OK", Color::new(0.7, 0.7, 0.7, 1.0), 50)
+            };
+
+            // Long note or regular note
+            if duration >= MIN_LN_DURATION {
+                note.ln_started = true;
+                note.hit = true;
+                state.combo += 1;
+                state.score += score_val / 2;
+            } else {
+                note.hit = true;
+                note.missed = false;
+                state.combo += 1;
+                state.score += score_val;
             }
+
+            state.last_judgment = judgment;
+            state.judgment_color = judgment_color;
+            state.judgment_time = now;
+            state.last_input_delay = timing_diff * 1000.0;
         }
     }
+}
 
     // SECOND PASS: Handle long note holds and releases
     for (i, key) in keys.iter().enumerate() {
@@ -256,7 +279,8 @@ pub fn update_and_draw(state: &mut GameState) {
             
             // Draw head marker if not yet started
             if !note.ln_started && y_head < screen_height() && y_head > -50.0 {
-                draw_rectangle(x + 4.0, y_head - 15.0, lane_w - 8.0, 30.0, YELLOW);
+               draw_rectangle(x + 4.0, y_head - 15.0, lane_w - 8.0, 30.0, WHITE);
+
             }
         } else {
             // Regular note rendering

@@ -50,13 +50,33 @@ pub fn get_difficulties(folder_path: &PathBuf) -> Result<Vec<BeatmapInfo>, Box<d
     Ok(beatmaps)
 }
 
-pub fn load_map(osu_path: PathBuf, stream: &OutputStreamHandle, force_key_count: usize) -> Result<GameState, Box<dyn std::error::Error>> {
+pub async fn load_map(osu_path: PathBuf, stream: &OutputStreamHandle, force_key_count: usize) -> Result<GameState, Box<dyn std::error::Error>> {
     let mut osu_content = String::new();
     fs::File::open(&osu_path)?.read_to_string(&mut osu_content)?;
 
     let mut audio_filename = String::new();
     let mut slider_multiplier = 1.4;
-    
+    // Find background image
+let mut bg_texture: Option<Texture2D> = None;
+let mut section = "";
+for line in osu_content.lines() {
+    let line = line.trim();
+    if line.starts_with("[") { section = line; continue; }
+
+    if section == "[Events]" && line.starts_with("0,0,\"") {
+        let start = line.find('"').unwrap() + 1;
+        let end = line[start..].find('"').unwrap() + start;
+        let bg_file = line[start..end].to_string();
+        let bg_path = osu_path.parent().unwrap().join(bg_file);
+
+        // Load texture
+        if let Ok(tex) = macroquad::prelude::load_texture(bg_path.to_str().unwrap()).await {
+            bg_texture = Some(tex);
+        }
+        break;
+    }
+}
+
     // Timing points: (time_ms, beat_length, velocity_multiplier)
     let mut timing_points: Vec<(f32, f32, f32)> = Vec::new();
 
@@ -65,7 +85,7 @@ pub fn load_map(osu_path: PathBuf, stream: &OutputStreamHandle, force_key_count:
         let line = line.trim();
         if line.is_empty() || line.starts_with("//") { continue; }
         if line.starts_with("[") { section = line; continue; }
-
+        
         match section {
             "[General]" => if line.starts_with("AudioFilename:") {
                 audio_filename = line.split(':').nth(1).unwrap().trim().to_string();
@@ -194,5 +214,6 @@ pub fn load_map(osu_path: PathBuf, stream: &OutputStreamHandle, force_key_count:
         },
         song_finished: false,
         song_duration,
+        bg_texture,
     })
 }
