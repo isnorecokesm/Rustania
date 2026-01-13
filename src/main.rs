@@ -1,6 +1,9 @@
+#![windows_subsystem = "windows"]
+
 mod models;
 mod parser;
 mod game;
+mod discord_rpc;
 
 use macroquad::prelude::*;
 use macroquad::ui::root_ui;
@@ -18,7 +21,8 @@ async fn main() {
     let mut selected_beatmap: Option<PathBuf> = None;
     let mut difficulties: Vec<parser::BeatmapInfo> = Vec::new();
     let mut key_mode = 4; // 2K or 4K
-
+    let mut rpc = discord_rpc::RpcManager::new();
+    rpc.update_idle();
     let _ = fs::create_dir_all("beatmaps");
 
     loop {
@@ -76,6 +80,7 @@ async fn main() {
                 
                 if root_ui().button(vec2(40.0, 145.0), "< BACK TO MENU") {
                     scene = "Menu";
+                    rpc.update_idle();
                 }
 
                 for (i, diff) in difficulties.iter().enumerate() {
@@ -83,6 +88,8 @@ async fn main() {
                         if let Ok(s) = parser::load_map(diff.path.clone(), &stream_handle, key_mode).await {
                             state = Some(s);
                             scene = "Playing";
+                                  let map_name = selected_beatmap.as_ref().unwrap().file_stem().unwrap().to_string_lossy();
+rpc.update_playing(&map_name, &diff.version);
                         }
                     }
                 }
@@ -96,6 +103,7 @@ async fn main() {
                         if let Ok(mut sink) = audio_sink.lock() {
                             if let Some(s) = sink.take() {
                                 s.stop();
+                                
                             }
                         }
                     }

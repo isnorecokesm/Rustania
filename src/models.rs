@@ -25,6 +25,7 @@ pub struct GameState {
     pub song_finished: bool,
     pub song_duration: f32,
     pub bg_texture: Option<Texture2D>,
+    pub song_name: String,
 }
 
 pub struct HitCounts {

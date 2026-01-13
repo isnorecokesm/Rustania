@@ -215,5 +215,6 @@ for line in osu_content.lines() {
         song_finished: false,
         song_duration,
         bg_texture,
+        song_name: osu_path.file_stem().unwrap().to_string_lossy().to_string(),
     })
 }
